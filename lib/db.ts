@@ -1,7 +1,8 @@
 import { Pool } from "pg";
-import type { MonthlyMetric, MetricInput } from "./types";
+import { randomUUID } from "crypto";
+import type { Account, MonthlyMetric, MetricInput } from "./types";
 
-export type { MonthlyMetric, MetricInput } from "./types";
+export type { Account, MonthlyMetric, MetricInput } from "./types";
 
 const connectionString =
   process.env.POSTGRES_URL ||
@@ -37,11 +38,46 @@ function getPool(): Pool {
 
 async function ensureSchema(): Promise<void> {
   if (!global.__igSchemaReady) {
-    global.__igSchemaReady = getPool()
-      .query(
-        `
+    global.__igSchemaReady = (async () => {
+      const pool = getPool();
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS accounts (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+      `);
+
+      // Migrate the legacy single-account schema (monthly_metrics without
+      // account_id) into the multi-account shape, in place, without losing data.
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'monthly_metrics'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'monthly_metrics' AND column_name = 'account_id'
+          ) THEN
+            INSERT INTO accounts (id, name) VALUES ('default', 'メインアカウント')
+              ON CONFLICT (id) DO NOTHING;
+            ALTER TABLE monthly_metrics ADD COLUMN account_id TEXT;
+            UPDATE monthly_metrics SET account_id = 'default' WHERE account_id IS NULL;
+            ALTER TABLE monthly_metrics ALTER COLUMN account_id SET NOT NULL;
+            ALTER TABLE monthly_metrics DROP CONSTRAINT IF EXISTS monthly_metrics_pkey;
+            ALTER TABLE monthly_metrics ADD PRIMARY KEY (account_id, year_month);
+            ALTER TABLE monthly_metrics
+              ADD CONSTRAINT monthly_metrics_account_id_fkey
+              FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE;
+          END IF;
+        END $$;
+      `);
+
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS monthly_metrics (
-          year_month TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          year_month TEXT NOT NULL,
           follower_count INTEGER,
           follower_net_increase INTEGER,
           reach INTEGER,
@@ -50,16 +86,71 @@ async function ensureSchema(): Promise<void> {
           non_follower_percent DOUBLE PRECISION,
           influencer_count INTEGER,
           influencer_estimated_pv INTEGER,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (account_id, year_month)
         );
-      `
-      )
-      .then(() => undefined);
+      `);
+    })();
   }
   await global.__igSchemaReady;
 }
 
+interface AccountRow {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+function rowToAccount(row: AccountRow): Account {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+export async function listAccounts(): Promise<Account[]> {
+  await ensureSchema();
+  const { rows } = await getPool().query<AccountRow>(
+    `SELECT * FROM accounts ORDER BY created_at ASC`
+  );
+  return rows.map(rowToAccount);
+}
+
+export async function getAccount(accountId: string): Promise<Account | null> {
+  await ensureSchema();
+  const { rows } = await getPool().query<AccountRow>(
+    `SELECT * FROM accounts WHERE id = $1`,
+    [accountId]
+  );
+  return rows[0] ? rowToAccount(rows[0]) : null;
+}
+
+export async function createAccount(name: string): Promise<Account> {
+  await ensureSchema();
+  const { rows } = await getPool().query<AccountRow>(
+    `INSERT INTO accounts (id, name) VALUES ($1, $2) RETURNING *`,
+    [randomUUID(), name]
+  );
+  return rowToAccount(rows[0]);
+}
+
+export async function renameAccount(accountId: string, name: string): Promise<Account | null> {
+  await ensureSchema();
+  const { rows } = await getPool().query<AccountRow>(
+    `UPDATE accounts SET name = $2 WHERE id = $1 RETURNING *`,
+    [accountId, name]
+  );
+  return rows[0] ? rowToAccount(rows[0]) : null;
+}
+
+export async function deleteAccount(accountId: string): Promise<void> {
+  await ensureSchema();
+  await getPool().query(`DELETE FROM accounts WHERE id = $1`, [accountId]);
+}
+
 interface MonthlyMetricRow {
+  account_id: string;
   year_month: string;
   follower_count: number | null;
   follower_net_increase: number | null;
@@ -74,6 +165,7 @@ interface MonthlyMetricRow {
 
 function rowToMetric(row: MonthlyMetricRow): MonthlyMetric {
   return {
+    accountId: row.account_id,
     yearMonth: row.year_month,
     followerCount: row.follower_count,
     followerNetIncrease: row.follower_net_increase,
@@ -87,10 +179,11 @@ function rowToMetric(row: MonthlyMetricRow): MonthlyMetric {
   };
 }
 
-export async function listMetrics(): Promise<MonthlyMetric[]> {
+export async function listMetrics(accountId: string): Promise<MonthlyMetric[]> {
   await ensureSchema();
   const { rows } = await getPool().query<MonthlyMetricRow>(
-    `SELECT * FROM monthly_metrics ORDER BY year_month ASC`
+    `SELECT * FROM monthly_metrics WHERE account_id = $1 ORDER BY year_month ASC`,
+    [accountId]
   );
   return rows.map(rowToMetric);
 }
@@ -100,10 +193,10 @@ export async function upsertMetric(input: MetricInput): Promise<MonthlyMetric> {
   const { rows } = await getPool().query<MonthlyMetricRow>(
     `
     INSERT INTO monthly_metrics (
-      year_month, follower_count, follower_net_increase, reach, pv,
+      account_id, year_month, follower_count, follower_net_increase, reach, pv,
       follower_percent, non_follower_percent, influencer_count, influencer_estimated_pv, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
-    ON CONFLICT (year_month) DO UPDATE SET
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+    ON CONFLICT (account_id, year_month) DO UPDATE SET
       follower_count = excluded.follower_count,
       follower_net_increase = excluded.follower_net_increase,
       reach = excluded.reach,
@@ -116,6 +209,7 @@ export async function upsertMetric(input: MetricInput): Promise<MonthlyMetric> {
     RETURNING *
     `,
     [
+      input.accountId,
       input.yearMonth,
       input.followerCount,
       input.followerNetIncrease,
@@ -130,7 +224,10 @@ export async function upsertMetric(input: MetricInput): Promise<MonthlyMetric> {
   return rowToMetric(rows[0]);
 }
 
-export async function deleteMetric(yearMonth: string): Promise<void> {
+export async function deleteMetric(accountId: string, yearMonth: string): Promise<void> {
   await ensureSchema();
-  await getPool().query(`DELETE FROM monthly_metrics WHERE year_month = $1`, [yearMonth]);
+  await getPool().query(
+    `DELETE FROM monthly_metrics WHERE account_id = $1 AND year_month = $2`,
+    [accountId, yearMonth]
+  );
 }

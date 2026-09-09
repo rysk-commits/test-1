@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { MonthlyMetric } from "@/lib/types";
+import { formatYearMonth, formatNumber, formatSigned } from "@/lib/format";
 
 export interface MetricFormValues {
   yearMonth: string;
@@ -35,13 +36,20 @@ function currentYearMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const FIELDS: { key: keyof Omit<MetricFormValues, "yearMonth">; label: string; suffix?: string }[] = [
-  { key: "followerCount", label: "フォロワー数" },
-  { key: "followerNetIncrease", label: "純増" },
+function findPreviousMetric(
+  yearMonth: string,
+  metrics: MonthlyMetric[]
+): MonthlyMetric | undefined {
+  return metrics
+    .filter((m) => m.yearMonth < yearMonth)
+    .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth))[0];
+}
+
+const OTHER_FIELDS: { key: keyof Omit<MetricFormValues, "yearMonth" | "followerNetIncrease" | "followerCount">; label: string }[] = [
   { key: "reach", label: "リーチ数" },
   { key: "pv", label: "PV数" },
-  { key: "followerPercent", label: "フォロワー%", suffix: "%" },
-  { key: "nonFollowerPercent", label: "非フォロワー%", suffix: "%" },
+  { key: "followerPercent", label: "フォロワー%" },
+  { key: "nonFollowerPercent", label: "非フォロワー%" },
   { key: "influencerCount", label: "インフルエンサー人数" },
   { key: "influencerEstimatedPv", label: "想定PV" },
 ];
@@ -53,12 +61,16 @@ const inputStyle = {
 };
 
 export function MetricForm({
+  accountId,
   editingMetric,
+  allMetrics,
   onSaved,
   onCancelEdit,
   existingYearMonths,
 }: {
+  accountId: string;
   editingMetric: MonthlyMetric | null;
+  allMetrics: MonthlyMetric[];
   onSaved: (metric: MonthlyMetric) => void;
   onCancelEdit: () => void;
   existingYearMonths: string[];
@@ -66,16 +78,48 @@ export function MetricForm({
   const [values, setValues] = useState<MetricFormValues>(() =>
     metricToFormValues(editingMetric, currentYearMonth())
   );
+  const [lastAutoNet, setLastAutoNet] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setValues(metricToFormValues(editingMetric, currentYearMonth()));
+    setLastAutoNet(null);
     setError(null);
   }, [editingMetric]);
 
   const isEditing = editingMetric !== null;
   const isDuplicate = !isEditing && existingYearMonths.includes(values.yearMonth);
+
+  const previousMetric = findPreviousMetric(values.yearMonth, allMetrics);
+  const followerCountNum = values.followerCount === "" ? null : Number(values.followerCount);
+  const autoNet =
+    followerCountNum !== null &&
+    !Number.isNaN(followerCountNum) &&
+    previousMetric?.followerCount !== null &&
+    previousMetric?.followerCount !== undefined
+      ? followerCountNum - previousMetric.followerCount
+      : null;
+
+  // Auto-fill the net-increase field from the previous month's follower count,
+  // but only while the field is empty or still holds our own last auto value —
+  // once the user types something else, their value is left alone.
+  useEffect(() => {
+    if (autoNet === null) {
+      setLastAutoNet(null);
+      return;
+    }
+    const autoStr = String(autoNet);
+    setValues((v) =>
+      v.followerNetIncrease === "" || v.followerNetIncrease === lastAutoNet
+        ? { ...v, followerNetIncrease: autoStr }
+        : v
+    );
+    setLastAutoNet(autoStr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoNet]);
+
+  const isNetDiverged = autoNet !== null && values.followerNetIncrease !== String(autoNet);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +141,7 @@ export function MetricForm({
         influencerCount: values.influencerCount === "" ? null : Number(values.influencerCount),
         influencerEstimatedPv: values.influencerEstimatedPv === "" ? null : Number(values.influencerEstimatedPv),
       };
-      const res = await fetch("/api/metrics", {
+      const res = await fetch(`/api/accounts/${accountId}/metrics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -110,6 +154,7 @@ export function MetricForm({
       onSaved(json.metric);
       if (!isEditing) {
         setValues(metricToFormValues(null, currentYearMonth()));
+        setLastAutoNet(null);
       }
     } catch {
       setError("通信エラーが発生しました");
@@ -153,7 +198,57 @@ export function MetricForm({
             style={inputStyle}
           />
         </label>
-        {FIELDS.map((field) => (
+
+        <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+          フォロワー数
+          <input
+            type="number"
+            step="any"
+            value={values.followerCount}
+            onChange={(e) => setValues((v) => ({ ...v, followerCount: e.target.value }))}
+            className="rounded-md px-2 py-1.5 text-sm"
+            style={inputStyle}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+          純増(前月比)
+          <input
+            type="number"
+            step="any"
+            value={values.followerNetIncrease}
+            onChange={(e) => setValues((v) => ({ ...v, followerNetIncrease: e.target.value }))}
+            className="rounded-md px-2 py-1.5 text-sm"
+            style={inputStyle}
+          />
+          {previousMetric && autoNet !== null ? (
+            <span style={{ color: "var(--text-muted)" }}>
+              前月({formatYearMonth(previousMetric.yearMonth)}): {formatNumber(previousMetric.followerCount)} →
+              自動計算 {formatSigned(autoNet)}
+              {isNetDiverged && (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setValues((v) => ({ ...v, followerNetIncrease: String(autoNet) }))
+                    }
+                    className="underline"
+                    style={{ color: "var(--series-1)" }}
+                  >
+                    自動計算値を使う
+                  </button>
+                </>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>
+              前月のフォロワー数があれば自動計算されます(手動入力も可)
+            </span>
+          )}
+        </label>
+
+        {OTHER_FIELDS.map((field) => (
           <label key={field.key} className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
             {field.label}
             <input

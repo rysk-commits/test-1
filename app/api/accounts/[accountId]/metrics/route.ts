@@ -2,16 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { listMetrics, upsertMetric } from "@/lib/db";
 import { parseMetricInput, ValidationError } from "@/lib/validation";
 
-export async function GET() {
-  const metrics = await listMetrics();
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ accountId: string }> }
+) {
+  const { accountId } = await params;
+  const metrics = await listMetrics(accountId);
   return NextResponse.json({ metrics });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ accountId: string }> }
+) {
+  const { accountId } = await params;
   try {
     const body = await request.json();
     const input = parseMetricInput(body);
-    const metric = await upsertMetric(input);
+    const metric = await upsertMetric({ ...input, accountId });
     return NextResponse.json({ metric }, { status: 200 });
   } catch (error) {
     if (error instanceof ValidationError) {

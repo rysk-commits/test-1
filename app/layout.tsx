@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AccountNav } from "@/components/AccountNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,22 +28,7 @@ export default function RootLayout({
               <Link href="/" className="font-semibold tracking-tight text-[15px]">
                 IG Analytics
               </Link>
-              <nav className="flex items-center gap-1 text-sm">
-                <Link
-                  href="/"
-                  className="px-3 py-1.5 rounded-md hover:opacity-80 transition-opacity"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  ダッシュボード
-                </Link>
-                <Link
-                  href="/data"
-                  className="px-3 py-1.5 rounded-md hover:opacity-80 transition-opacity"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  データ管理
-                </Link>
-              </nav>
+              <AccountNav />
             </div>
           </header>
           <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">{children}</main>

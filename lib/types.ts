@@ -1,4 +1,11 @@
+export interface Account {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface MonthlyMetric {
+  accountId: string;
   yearMonth: string;
   followerCount: number | null;
   followerNetIncrease: number | null;
@@ -12,14 +19,3 @@ export interface MonthlyMetric {
 }
 
 export type MetricInput = Omit<MonthlyMetric, "updatedAt">;
-
-export const EMPTY_METRIC_FIELDS: Omit<MetricInput, "yearMonth"> = {
-  followerCount: null,
-  followerNetIncrease: null,
-  reach: null,
-  pv: null,
-  followerPercent: null,
-  nonFollowerPercent: null,
-  influencerCount: null,
-  influencerEstimatedPv: null,
-};

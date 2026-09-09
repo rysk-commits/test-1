@@ -13,7 +13,7 @@ function toNullableNumber(value: unknown, field: string): number | null {
   return num;
 }
 
-export function parseMetricInput(body: unknown): MetricInput {
+export function parseMetricInput(body: unknown): Omit<MetricInput, "accountId"> {
   if (typeof body !== "object" || body === null) {
     throw new ValidationError("リクエストボディが不正です");
   }
@@ -35,6 +35,21 @@ export function parseMetricInput(body: unknown): MetricInput {
     influencerCount: toNullableNumber(b.influencerCount, "インフルエンサー人数"),
     influencerEstimatedPv: toNullableNumber(b.influencerEstimatedPv, "想定PV"),
   };
+}
+
+export function parseAccountName(body: unknown): string {
+  if (typeof body !== "object" || body === null) {
+    throw new ValidationError("リクエストボディが不正です");
+  }
+  const name = (body as Record<string, unknown>).name;
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new ValidationError("アカウント名を入力してください");
+  }
+  const trimmed = name.trim();
+  if (trimmed.length > 100) {
+    throw new ValidationError("アカウント名は100文字以内で入力してください");
+  }
+  return trimmed;
 }
 
 export { YEAR_MONTH_RE };
