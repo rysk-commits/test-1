@@ -12,7 +12,7 @@ export interface BarPoint {
 
 const W = 720;
 const H = 220;
-const PAD_LEFT = 46;
+const PAD_LEFT = 54;
 const PAD_RIGHT = 16;
 const PAD_TOP = 20;
 const PAD_BOTTOM = 26;

@@ -12,8 +12,8 @@ export interface LineSeriesPoint {
 
 const W = 720;
 const H = 260;
-const PAD_LEFT = 46;
-const PAD_RIGHT = 40;
+const PAD_LEFT = 62;
+const PAD_RIGHT = 64;
 const PAD_TOP = 20;
 const PAD_BOTTOM = 30;
 
@@ -164,9 +164,9 @@ export function LineChart({
           <>
             <circle cx={lastPoint.cx} cy={lastPoint.cy} r={5} fill={color} stroke="var(--surface-1)" strokeWidth={2} />
             <text
-              x={Math.min(lastPoint.cx + 8, W - PAD_RIGHT + 34)}
+              x={lastPoint.cx + 8}
               y={lastPoint.cy - 10}
-              textAnchor="middle"
+              textAnchor="start"
               fontSize={12}
               fontWeight={600}
               fill="var(--text-primary)"
