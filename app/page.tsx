@@ -10,8 +10,8 @@ import { formatNumber, formatSigned, formatYearMonth } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
-  const metrics = listMetrics();
+export default async function DashboardPage() {
+  const metrics = await listMetrics();
 
   if (metrics.length === 0) {
     return (

@@ -1,49 +1,62 @@
-import Database from "better-sqlite3";
-import path from "path";
-import fs from "fs";
+import { Pool } from "pg";
 import type { MonthlyMetric, MetricInput } from "./types";
 
 export type { MonthlyMetric, MetricInput } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-const DB_PATH = path.join(DATA_DIR, "instagram-analytics.db");
+const connectionString =
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __igDb: Database.Database | undefined;
+  var __igPool: Pool | undefined;
+  // eslint-disable-next-line no-var
+  var __igSchemaReady: Promise<void> | undefined;
 }
 
-function createConnection(): Database.Database {
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS monthly_metrics (
-      year_month TEXT PRIMARY KEY,
-      follower_count INTEGER,
-      follower_net_increase INTEGER,
-      reach INTEGER,
-      pv INTEGER,
-      follower_percent REAL,
-      non_follower_percent REAL,
-      influencer_count INTEGER,
-      influencer_estimated_pv INTEGER,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+function createPool(): Pool {
+  if (!connectionString) {
+    throw new Error(
+      "データベース接続文字列が設定されていません。環境変数 POSTGRES_URL (または DATABASE_URL) を設定してください。"
     );
-  `);
-
-  return db;
+  }
+  const needsSsl = !/localhost|127\.0\.0\.1/.test(connectionString);
+  return new Pool({
+    connectionString,
+    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+  });
 }
 
-export function getDb(): Database.Database {
-  if (!global.__igDb) {
-    global.__igDb = createConnection();
+function getPool(): Pool {
+  if (!global.__igPool) {
+    global.__igPool = createPool();
   }
-  return global.__igDb;
+  return global.__igPool;
+}
+
+async function ensureSchema(): Promise<void> {
+  if (!global.__igSchemaReady) {
+    global.__igSchemaReady = getPool()
+      .query(
+        `
+        CREATE TABLE IF NOT EXISTS monthly_metrics (
+          year_month TEXT PRIMARY KEY,
+          follower_count INTEGER,
+          follower_net_increase INTEGER,
+          reach INTEGER,
+          pv INTEGER,
+          follower_percent DOUBLE PRECISION,
+          non_follower_percent DOUBLE PRECISION,
+          influencer_count INTEGER,
+          influencer_estimated_pv INTEGER,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+      `
+      )
+      .then(() => undefined);
+  }
+  await global.__igSchemaReady;
 }
 
 interface MonthlyMetricRow {
@@ -70,45 +83,54 @@ function rowToMetric(row: MonthlyMetricRow): MonthlyMetric {
     nonFollowerPercent: row.non_follower_percent,
     influencerCount: row.influencer_count,
     influencerEstimatedPv: row.influencer_estimated_pv,
-    updatedAt: row.updated_at,
+    updatedAt: new Date(row.updated_at).toISOString(),
   };
 }
 
-export function listMetrics(): MonthlyMetric[] {
-  const rows = getDb()
-    .prepare(`SELECT * FROM monthly_metrics ORDER BY year_month ASC`)
-    .all() as MonthlyMetricRow[];
+export async function listMetrics(): Promise<MonthlyMetric[]> {
+  await ensureSchema();
+  const { rows } = await getPool().query<MonthlyMetricRow>(
+    `SELECT * FROM monthly_metrics ORDER BY year_month ASC`
+  );
   return rows.map(rowToMetric);
 }
 
-export function upsertMetric(input: MetricInput): MonthlyMetric {
-  getDb()
-    .prepare(
-      `INSERT INTO monthly_metrics (
-        year_month, follower_count, follower_net_increase, reach, pv,
-        follower_percent, non_follower_percent, influencer_count, influencer_estimated_pv, updated_at
-      ) VALUES (@yearMonth, @followerCount, @followerNetIncrease, @reach, @pv,
-        @followerPercent, @nonFollowerPercent, @influencerCount, @influencerEstimatedPv, datetime('now'))
-      ON CONFLICT(year_month) DO UPDATE SET
-        follower_count = excluded.follower_count,
-        follower_net_increase = excluded.follower_net_increase,
-        reach = excluded.reach,
-        pv = excluded.pv,
-        follower_percent = excluded.follower_percent,
-        non_follower_percent = excluded.non_follower_percent,
-        influencer_count = excluded.influencer_count,
-        influencer_estimated_pv = excluded.influencer_estimated_pv,
-        updated_at = datetime('now')
-      `
-    )
-    .run(input);
-
-  const row = getDb()
-    .prepare(`SELECT * FROM monthly_metrics WHERE year_month = ?`)
-    .get(input.yearMonth) as MonthlyMetricRow;
-  return rowToMetric(row);
+export async function upsertMetric(input: MetricInput): Promise<MonthlyMetric> {
+  await ensureSchema();
+  const { rows } = await getPool().query<MonthlyMetricRow>(
+    `
+    INSERT INTO monthly_metrics (
+      year_month, follower_count, follower_net_increase, reach, pv,
+      follower_percent, non_follower_percent, influencer_count, influencer_estimated_pv, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+    ON CONFLICT (year_month) DO UPDATE SET
+      follower_count = excluded.follower_count,
+      follower_net_increase = excluded.follower_net_increase,
+      reach = excluded.reach,
+      pv = excluded.pv,
+      follower_percent = excluded.follower_percent,
+      non_follower_percent = excluded.non_follower_percent,
+      influencer_count = excluded.influencer_count,
+      influencer_estimated_pv = excluded.influencer_estimated_pv,
+      updated_at = now()
+    RETURNING *
+    `,
+    [
+      input.yearMonth,
+      input.followerCount,
+      input.followerNetIncrease,
+      input.reach,
+      input.pv,
+      input.followerPercent,
+      input.nonFollowerPercent,
+      input.influencerCount,
+      input.influencerEstimatedPv,
+    ]
+  );
+  return rowToMetric(rows[0]);
 }
 
-export function deleteMetric(yearMonth: string): void {
-  getDb().prepare(`DELETE FROM monthly_metrics WHERE year_month = ?`).run(yearMonth);
+export async function deleteMetric(yearMonth: string): Promise<void> {
+  await ensureSchema();
+  await getPool().query(`DELETE FROM monthly_metrics WHERE year_month = $1`, [yearMonth]);
 }

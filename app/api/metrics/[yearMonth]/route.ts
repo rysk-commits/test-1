@@ -10,6 +10,6 @@ export async function DELETE(
   if (!YEAR_MONTH_RE.test(yearMonth)) {
     return NextResponse.json({ error: "年月は YYYY-MM 形式で指定してください" }, { status: 400 });
   }
-  deleteMetric(yearMonth);
+  await deleteMetric(yearMonth);
   return NextResponse.json({ ok: true });
 }

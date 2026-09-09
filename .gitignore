@@ -8,12 +8,6 @@
 # production
 /build
 
-# database (local runtime data, not source)
-/data/*.db
-/data/*.db-journal
-/data/*.db-wal
-/data/*.db-shm
-
 # misc
 .DS_Store
 *.pem
