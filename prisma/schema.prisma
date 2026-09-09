@@ -1,0 +1,61 @@
+// Prisma schema for the LINE <-> Slack AI reply bot.
+//
+// Default datasource is SQLite for zero-config local development.
+// For production, switch `provider` to "postgresql" and set DATABASE_URL
+// to a Postgres connection string (see README.md).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLiteはenumを未サポートのため文字列で表現する。
+// Direction: "INBOUND" | "OUTBOUND"
+// SlackThreadStatus: "PENDING" | "REPLIED"
+
+model LineUser {
+  id          String    @id // LINE userId
+  displayName String?
+  pictureUrl  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  messages    Message[]
+}
+
+model Message {
+  id         String           @id @default(cuid())
+  lineUser   LineUser         @relation(fields: [lineUserId], references: [id])
+  lineUserId String
+  direction  String
+  text       String
+  createdAt  DateTime         @default(now())
+
+  candidates  ReplyCandidate[]
+  slackThread SlackThread?
+
+  @@index([lineUserId, createdAt])
+}
+
+model ReplyCandidate {
+  id        String   @id @default(cuid())
+  message   Message  @relation(fields: [messageId], references: [id])
+  messageId String
+  index     Int
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+}
+
+model SlackThread {
+  id        String            @id @default(cuid())
+  message   Message           @relation(fields: [messageId], references: [id])
+  messageId String            @unique
+  channelId String
+  ts        String
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+}
