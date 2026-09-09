@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { MonthlyMetric } from "@/lib/types";
 import { formatYearMonth, formatNumber, formatSigned } from "@/lib/format";
+import { cardStyle, cardClassName, inputStyle, inputClassName, primaryButtonStyle, primaryButtonClassName } from "./ui";
 
 export interface MetricFormValues {
   yearMonth: string;
@@ -53,12 +54,6 @@ const OTHER_FIELDS: { key: keyof Omit<MetricFormValues, "yearMonth" | "followerN
   { key: "influencerCount", label: "インフルエンサー人数" },
   { key: "influencerEstimatedPv", label: "想定PV" },
 ];
-
-const inputStyle = {
-  background: "var(--surface-1)",
-  border: "1px solid var(--border-hairline)",
-  color: "var(--text-primary)",
-};
 
 export function MetricForm({
   accountId,
@@ -166,18 +161,18 @@ export function MetricForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-xl p-5 flex flex-col gap-4"
-      style={{ background: "var(--card-bg)", border: "1px solid var(--border-hairline)" }}
+      className={`${cardClassName} p-5 flex flex-col gap-4`}
+      style={cardStyle}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+        <h3 className="text-[13.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           {isEditing ? `${editingMetric.yearMonth} を編集` : "月次データを追加"}
         </h3>
         {isEditing && (
           <button
             type="button"
             onClick={onCancelEdit}
-            className="text-xs px-2 py-1 rounded"
+            className="text-xs px-2 py-1 rounded-md font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             キャンセル
@@ -186,7 +181,7 @@ export function MetricForm({
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+        <label className="flex flex-col gap-1 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
           年月
           <input
             type="month"
@@ -194,31 +189,31 @@ export function MetricForm({
             disabled={isEditing}
             value={values.yearMonth}
             onChange={(e) => setValues((v) => ({ ...v, yearMonth: e.target.value }))}
-            className="rounded-md px-2 py-1.5 text-sm disabled:opacity-60"
+            className={`${inputClassName} disabled:opacity-60`}
             style={inputStyle}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+        <label className="flex flex-col gap-1 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
           フォロワー数
           <input
             type="number"
             step="any"
             value={values.followerCount}
             onChange={(e) => setValues((v) => ({ ...v, followerCount: e.target.value }))}
-            className="rounded-md px-2 py-1.5 text-sm"
+            className={inputClassName}
             style={inputStyle}
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+        <label className="flex flex-col gap-1 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
           純増(前月比)
           <input
             type="number"
             step="any"
             value={values.followerNetIncrease}
             onChange={(e) => setValues((v) => ({ ...v, followerNetIncrease: e.target.value }))}
-            className="rounded-md px-2 py-1.5 text-sm"
+            className={inputClassName}
             style={inputStyle}
           />
           {previousMetric && autoNet !== null ? (
@@ -234,7 +229,7 @@ export function MetricForm({
                       setValues((v) => ({ ...v, followerNetIncrease: String(autoNet) }))
                     }
                     className="underline"
-                    style={{ color: "var(--series-1)" }}
+                    style={{ color: "var(--brand)" }}
                   >
                     自動計算値を使う
                   </button>
@@ -249,14 +244,18 @@ export function MetricForm({
         </label>
 
         {OTHER_FIELDS.map((field) => (
-          <label key={field.key} className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+          <label
+            key={field.key}
+            className="flex flex-col gap-1 text-xs font-medium"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {field.label}
             <input
               type="number"
               step="any"
               value={values[field.key]}
               onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-              className="rounded-md px-2 py-1.5 text-sm"
+              className={inputClassName}
               style={inputStyle}
             />
           </label>
@@ -275,12 +274,7 @@ export function MetricForm({
       )}
 
       <div>
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-60"
-          style={{ background: "var(--series-1)" }}
-        >
+        <button type="submit" disabled={saving} className={primaryButtonClassName} style={primaryButtonStyle}>
           {saving ? "保存中…" : isEditing ? "更新する" : "追加する"}
         </button>
       </div>

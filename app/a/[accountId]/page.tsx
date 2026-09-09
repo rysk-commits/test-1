@@ -24,8 +24,15 @@ export default async function AccountDashboardPage({
 
   if (metrics.length === 0) {
     return (
-      <div className="text-center py-24">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+      <div
+        className="text-center py-24 rounded-2xl"
+        style={{
+          background: "var(--card-bg)",
+          border: "1px solid var(--border-hairline)",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        <h2 className="text-lg font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           {account.name}: まだデータがありません
         </h2>
         <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -33,8 +40,8 @@ export default async function AccountDashboardPage({
         </p>
         <Link
           href={`/a/${accountId}/data`}
-          className="inline-block mt-6 px-4 py-2 rounded-md text-sm font-medium text-white"
-          style={{ background: "var(--series-1)" }}
+          className="inline-block mt-6 px-4 py-2.5 rounded-lg text-sm font-semibold text-white"
+          style={{ background: "var(--brand)", boxShadow: "var(--shadow-sm)" }}
         >
           データを入力する
         </Link>
@@ -58,7 +65,7 @@ export default async function AccountDashboardPage({
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {account.name}
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
@@ -67,10 +74,12 @@ export default async function AccountDashboardPage({
         </div>
         <Link
           href={`/a/${accountId}/data`}
-          className="px-3 py-2 rounded-md text-sm font-medium"
+          className="px-3.5 py-2 rounded-lg text-sm font-semibold"
           style={{
             border: "1px solid var(--border-hairline)",
-            color: "var(--text-secondary)",
+            color: "var(--text-primary)",
+            background: "var(--card-bg)",
+            boxShadow: "var(--shadow-xs)",
           }}
         >
           テーブルで見る / データを編集

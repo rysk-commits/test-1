@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Account } from "@/lib/types";
-
-const inputStyle = {
-  background: "var(--surface-1)",
-  border: "1px solid var(--border-hairline)",
-  color: "var(--text-primary)",
-};
+import {
+  cardStyle,
+  cardClassName,
+  inputStyle,
+  inputClassName,
+  primaryButtonStyle,
+  primaryButtonClassName,
+} from "@/components/ui";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -23,6 +25,14 @@ export default function AccountsPage() {
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [importText, setImportText] = useState("");
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{
+    accountsCreated: number;
+    metricsUpserted: number;
+    errors: { index: number; error: string }[];
+  } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -93,6 +103,44 @@ export default function AccountsPage() {
     }
   }
 
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    const lines = importText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) return;
+    const header = lines[0].split("\t").map((h) => h.trim());
+    const rows = lines.slice(1).map((line) => {
+      const cells = line.split("\t");
+      const obj: Record<string, string> = {};
+      header.forEach((h, i) => {
+        obj[h] = (cells[i] ?? "").trim();
+      });
+      return obj;
+    });
+
+    setImportSubmitting(true);
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const res = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setImportError(json.error ?? "インポートに失敗しました");
+        return;
+      }
+      setImportResult(json);
+      await load();
+      setImportText("");
+    } catch {
+      setImportError("通信エラーが発生しました");
+    } finally {
+      setImportSubmitting(false);
+    }
+  }
+
   async function handleRename(id: string) {
     const name = editingName.trim();
     if (!name) return;
@@ -122,9 +170,9 @@ export default function AccountsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 max-w-2xl">
+    <div className="flex flex-col gap-8 max-w-3xl">
       <div>
-        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           アカウント管理
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
@@ -132,12 +180,8 @@ export default function AccountsPage() {
         </p>
       </div>
 
-      <form
-        onSubmit={handleCreate}
-        className="rounded-xl p-5 flex flex-col gap-3"
-        style={{ background: "var(--card-bg)", border: "1px solid var(--border-hairline)" }}
-      >
-        <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+      <form onSubmit={handleCreate} className={`${cardClassName} p-5 flex flex-col gap-3`} style={cardStyle}>
+        <h3 className="text-[13.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           新しいアカウントを追加
         </h3>
         <div className="flex gap-2">
@@ -145,14 +189,14 @@ export default function AccountsPage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="例: @brand_official"
-            className="flex-1 rounded-md px-3 py-2 text-sm"
+            className={`flex-1 ${inputClassName}`}
             style={inputStyle}
           />
           <button
             type="submit"
             disabled={creating || newName.trim().length === 0}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-60"
-            style={{ background: "var(--series-1)" }}
+            className={primaryButtonClassName}
+            style={primaryButtonStyle}
           >
             {creating ? "追加中…" : "追加"}
           </button>
@@ -164,13 +208,9 @@ export default function AccountsPage() {
         )}
       </form>
 
-      <form
-        onSubmit={handleBulkCreate}
-        className="rounded-xl p-5 flex flex-col gap-3"
-        style={{ background: "var(--card-bg)", border: "1px solid var(--border-hairline)" }}
-      >
+      <form onSubmit={handleBulkCreate} className={`${cardClassName} p-5 flex flex-col gap-3`} style={cardStyle}>
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          <h3 className="text-[13.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
             複数アカウントをまとめて追加
           </h3>
           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
@@ -182,15 +222,15 @@ export default function AccountsPage() {
           onChange={(e) => setBulkText(e.target.value)}
           placeholder={"江並店\n神戸本多聞店\n松原店\n…"}
           rows={8}
-          className="rounded-md px-3 py-2 text-sm font-mono"
+          className={`${inputClassName} font-mono`}
           style={inputStyle}
         />
         <div className="flex items-center gap-3">
           <button
             type="submit"
             disabled={bulkSubmitting || bulkText.trim().length === 0}
-            className="px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-60"
-            style={{ background: "var(--series-1)" }}
+            className={primaryButtonClassName}
+            style={primaryButtonStyle}
           >
             {bulkSubmitting ? "追加中…" : "まとめて追加"}
           </button>
@@ -208,6 +248,58 @@ export default function AccountsPage() {
         )}
       </form>
 
+      <form onSubmit={handleImport} className={`${cardClassName} p-5 flex flex-col gap-3`} style={cardStyle}>
+        <div>
+          <h3 className="text-[13.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            過去データを一括インポート
+          </h3>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            タブ区切り(TSV)のデータを1行目のヘッダー付きで貼り付けてください。存在しないアカウント名は自動的に作成されます。
+          </p>
+        </div>
+        <textarea
+          value={importText}
+          onChange={(e) => setImportText(e.target.value)}
+          placeholder={
+            "accountName\tyearMonth\tfollowerCount\tfollowerNetIncrease\treach\tpv\tfollowerPercent\tnonFollowerPercent\tinfluencerCount\tinfluencerEstimatedPv\n江並店\t2026-08\t1610\t361\t29956\t158885\t26.7\t73.3\t6\t17000"
+          }
+          rows={10}
+          className={`${inputClassName} text-xs font-mono`}
+          style={inputStyle}
+        />
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={importSubmitting || importText.trim().length === 0}
+            className={primaryButtonClassName}
+            style={primaryButtonStyle}
+          >
+            {importSubmitting ? "インポート中…" : "インポート実行"}
+          </button>
+          {importResult && (
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              アカウント{importResult.accountsCreated}件作成 / データ{importResult.metricsUpserted}
+              件登録
+              {importResult.errors.length > 0 && `(エラー${importResult.errors.length}件)`}
+            </span>
+          )}
+        </div>
+        {importError && (
+          <p className="text-xs" style={{ color: "var(--status-critical)" }}>
+            {importError}
+          </p>
+        )}
+        {importResult && importResult.errors.length > 0 && (
+          <ul className="text-xs flex flex-col gap-0.5" style={{ color: "var(--status-critical)" }}>
+            {importResult.errors.slice(0, 10).map((e) => (
+              <li key={e.index}>
+                行{e.index + 2}: {e.error}
+              </li>
+            ))}
+          </ul>
+        )}
+      </form>
+
       {loading ? (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           読み込み中…
@@ -217,10 +309,7 @@ export default function AccountsPage() {
           まだアカウントがありません。上のフォームから追加してください。
         </p>
       ) : (
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{ background: "var(--card-bg)", border: "1px solid var(--border-hairline)" }}
-        >
+        <div className={`${cardClassName} overflow-hidden`} style={cardStyle}>
           {accounts.map((a, i) => (
             <div
               key={a.id}
@@ -234,20 +323,20 @@ export default function AccountsPage() {
                   <input
                     value={editingName}
                     onChange={(e) => setEditingName(e.target.value)}
-                    className="flex-1 rounded-md px-2 py-1.5 text-sm"
+                    className={`flex-1 ${inputClassName}`}
                     style={inputStyle}
                     autoFocus
                   />
                   <button
                     onClick={() => handleRename(a.id)}
-                    className="text-xs px-2 py-1 font-medium"
-                    style={{ color: "var(--series-1)" }}
+                    className="text-xs px-2.5 py-1 rounded-md font-semibold"
+                    style={{ color: "var(--brand)", background: "var(--brand-soft)" }}
                   >
                     保存
                   </button>
                   <button
                     onClick={() => setEditingId(null)}
-                    className="text-xs px-2 py-1"
+                    className="text-xs px-2.5 py-1 rounded-md font-semibold"
                     style={{ color: "var(--text-muted)" }}
                   >
                     キャンセル
@@ -257,7 +346,7 @@ export default function AccountsPage() {
                 <>
                   <Link
                     href={`/a/${a.id}`}
-                    className="text-sm font-medium hover:underline"
+                    className="text-sm font-semibold hover:underline"
                     style={{ color: "var(--text-primary)" }}
                   >
                     {a.name}
@@ -269,14 +358,14 @@ export default function AccountsPage() {
                         setEditingName(a.name);
                         setRenameError(null);
                       }}
-                      className="text-xs px-2 py-1"
-                      style={{ color: "var(--series-1)" }}
+                      className="text-xs px-2.5 py-1 rounded-md font-semibold"
+                      style={{ color: "var(--brand)", background: "var(--brand-soft)" }}
                     >
                       名前変更
                     </button>
                     <button
                       onClick={() => handleDelete(a.id, a.name)}
-                      className="text-xs px-2 py-1"
+                      className="text-xs px-2.5 py-1 rounded-md font-semibold"
                       style={{ color: "var(--status-critical)" }}
                     >
                       削除

@@ -28,6 +28,18 @@
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #d03b3b;
+
+  /* chrome (non-chart UI): brand accent, surfaces, shadows */
+  --brand: #2a78d6;
+  --brand-hover: #1c5cab;
+  --brand-soft: #eaf2fc;
+  --brand-soft-ink: #184f95;
+  --sidebar-bg: #ffffff;
+  --shadow-color: 220 20% 15%;
+  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.06);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 2px 6px hsl(var(--shadow-color) / 0.06);
+  --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.04), 0 8px 20px hsl(var(--shadow-color) / 0.08);
+  --shadow-focus: 0 0 0 3px var(--brand-soft);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,6 +63,17 @@
     --series-5: #d55181;
     --series-6: #9085e9;
     --series-7: #e66767;
+
+    --brand: #3987e5;
+    --brand-hover: #5598e7;
+    --brand-soft: #16273f;
+    --brand-soft-ink: #86b6ef;
+    --sidebar-bg: #161615;
+    --shadow-color: 0 0% 0%;
+    --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.3);
+    --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.25), 0 2px 6px hsl(var(--shadow-color) / 0.3);
+    --shadow-md: 0 2px 4px hsl(var(--shadow-color) / 0.25), 0 8px 20px hsl(var(--shadow-color) / 0.35);
+    --shadow-focus: 0 0 0 3px var(--brand-soft);
   }
 }
 
@@ -68,6 +91,7 @@ body {
   background: var(--page-plane);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -76,4 +100,38 @@ a {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-color: var(--brand);
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--brand-soft-ink);
 }

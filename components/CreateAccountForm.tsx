@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputStyle, inputClassName, primaryButtonStyle, primaryButtonClassName } from "./ui";
 
 export function CreateAccountForm() {
   const router = useRouter();
@@ -41,12 +42,8 @@ export function CreateAccountForm() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="アカウント名(例: @brand_official)"
-        className="rounded-md px-3 py-2 text-sm"
-        style={{
-          background: "var(--surface-1)",
-          border: "1px solid var(--border-hairline)",
-          color: "var(--text-primary)",
-        }}
+        className={inputClassName}
+        style={inputStyle}
         autoFocus
       />
       {error && (
@@ -57,8 +54,8 @@ export function CreateAccountForm() {
       <button
         type="submit"
         disabled={saving || name.trim().length === 0}
-        className="px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-60"
-        style={{ background: "var(--series-1)" }}
+        className={primaryButtonClassName}
+        style={primaryButtonStyle}
       >
         {saving ? "作成中…" : "アカウントを作成"}
       </button>

@@ -9,14 +9,15 @@ export function ChartCard({
 }) {
   return (
     <div
-      className="rounded-xl p-5"
+      className="rounded-2xl p-5 hover:-translate-y-0.5"
       style={{
         background: "var(--card-bg)",
         border: "1px solid var(--border-hairline)",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div className="mb-4">
-        <h3 className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
+        <h3 className="text-[13.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           {title}
         </h3>
         {subtitle && (

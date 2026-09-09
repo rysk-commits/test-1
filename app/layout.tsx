@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AccountNav } from "@/components/AccountNav";
+import { Sidebar } from "@/components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,28 +15,11 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <div className="min-h-screen flex flex-col">
-          <header
-            className="border-b sticky top-0 z-10"
-            style={{
-              background: "var(--surface-1)",
-              borderColor: "var(--border-hairline)",
-            }}
-          >
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
-              <Link href="/" className="font-semibold tracking-tight text-[15px]">
-                IG Analytics
-              </Link>
-              <AccountNav />
-            </div>
-          </header>
-          <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">{children}</main>
-          <footer
-            className="text-xs px-4 sm:px-6 py-6 max-w-6xl w-full mx-auto"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Instagram Analytics Dashboard
-          </footer>
+        <div className="min-h-screen flex flex-col md:flex-row">
+          <Sidebar />
+          <main className="flex-1 min-w-0 px-4 sm:px-8 py-8 max-w-[1400px] w-full mx-auto">
+            {children}
+          </main>
         </div>
       </body>
     </html>

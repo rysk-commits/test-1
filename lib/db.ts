@@ -40,6 +40,7 @@ async function ensureSchema(): Promise<void> {
   if (!global.__igSchemaReady) {
     global.__igSchemaReady = (async () => {
       const pool = getPool();
+      try {
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS accounts (
@@ -90,6 +91,10 @@ async function ensureSchema(): Promise<void> {
           PRIMARY KEY (account_id, year_month)
         );
       `);
+      } catch (error) {
+        global.__igSchemaReady = undefined;
+        throw error;
+      }
     })();
   }
   await global.__igSchemaReady;
@@ -154,6 +159,16 @@ export async function createAccountsBulk(
     existingNames.add(name);
   }
   return { created, skipped };
+}
+
+export async function findOrCreateAccountByName(name: string): Promise<Account> {
+  await ensureSchema();
+  const { rows } = await getPool().query<AccountRow>(
+    `SELECT * FROM accounts WHERE name = $1 LIMIT 1`,
+    [name]
+  );
+  if (rows[0]) return rowToAccount(rows[0]);
+  return createAccount(name);
 }
 
 export async function renameAccount(accountId: string, name: string): Promise<Account | null> {

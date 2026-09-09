@@ -55,7 +55,7 @@ export default function AccountDataPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           データ管理{account ? `: ${account.name}` : ""}
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
