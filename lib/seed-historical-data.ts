@@ -1,13 +1,19 @@
-import { Pool } from "pg";
-import { randomUUID } from "crypto";
-
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-const needsSsl = !/localhost|127\.0\.0\.1/.test(connectionString);
-const pool = new Pool({ connectionString, ssl: needsSsl ? { rejectUnauthorized: false } : undefined });
+import { findOrCreateAccountByName, upsertMetric } from "./db";
 
 const NAME_ONLY_ACCOUNTS = ["杉田店", "行徳店", "だんちゃんラーメン", "あべの酒場", "ぶたもん天満店", "ぶたもん京橋本店"];
 
-const METRICS = [
+const METRICS: {
+  accountName: string;
+  yearMonth: string;
+  followerCount: number | null;
+  followerNetIncrease: number | null;
+  reach: number | null;
+  pv: number | null;
+  followerPercent: number | null;
+  nonFollowerPercent: number | null;
+  influencerCount: number | null;
+  influencerEstimatedPv: number | null;
+}[] = [
   { accountName: "江並店", yearMonth: "2025-12", followerCount: 184, followerNetIncrease: 87, reach: 1207, pv: 52709, followerPercent: 17.2, nonFollowerPercent: 82.8, influencerCount: null, influencerEstimatedPv: null },
   { accountName: "江並店", yearMonth: "2026-01", followerCount: 199, followerNetIncrease: 15, reach: 328, pv: 12756, followerPercent: 33.7, nonFollowerPercent: 66.3, influencerCount: null, influencerEstimatedPv: null },
   { accountName: "江並店", yearMonth: "2026-02", followerCount: 280, followerNetIncrease: 81, reach: 62145, pv: 104485, followerPercent: 7.8, nonFollowerPercent: 92.2, influencerCount: null, influencerEstimatedPv: null },
@@ -75,96 +81,20 @@ const METRICS = [
   { accountName: "ぶたもん長岡店", yearMonth: "2026-08", followerCount: 621, followerNetIncrease: 21, reach: 5446, pv: 25472, followerPercent: 54.0, nonFollowerPercent: 46.0, influencerCount: null, influencerEstimatedPv: null },
 ];
 
-async function ensureSchema() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS accounts (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS monthly_metrics (
-      account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-      year_month TEXT NOT NULL,
-      follower_count INTEGER,
-      follower_net_increase INTEGER,
-      reach INTEGER,
-      pv INTEGER,
-      follower_percent DOUBLE PRECISION,
-      non_follower_percent DOUBLE PRECISION,
-      influencer_count INTEGER,
-      influencer_estimated_pv INTEGER,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      PRIMARY KEY (account_id, year_month)
-    );
-  `);
-}
-
-async function findOrCreateAccount(name) {
-  const { rows } = await pool.query(`SELECT * FROM accounts WHERE name = $1 LIMIT 1`, [name]);
-  if (rows[0]) return rows[0];
-  const { rows: inserted } = await pool.query(
-    `INSERT INTO accounts (id, name) VALUES ($1, $2) RETURNING *`,
-    [randomUUID(), name]
-  );
-  console.log("created account:", name);
-  return inserted[0];
-}
-
-async function upsertMetric(accountId, m) {
-  await pool.query(
-    `
-    INSERT INTO monthly_metrics (
-      account_id, year_month, follower_count, follower_net_increase, reach, pv,
-      follower_percent, non_follower_percent, influencer_count, influencer_estimated_pv, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
-    ON CONFLICT (account_id, year_month) DO UPDATE SET
-      follower_count = excluded.follower_count,
-      follower_net_increase = excluded.follower_net_increase,
-      reach = excluded.reach,
-      pv = excluded.pv,
-      follower_percent = excluded.follower_percent,
-      non_follower_percent = excluded.non_follower_percent,
-      influencer_count = excluded.influencer_count,
-      influencer_estimated_pv = excluded.influencer_estimated_pv,
-      updated_at = now()
-    `,
-    [
-      accountId,
-      m.yearMonth,
-      m.followerCount,
-      m.followerNetIncrease,
-      m.reach,
-      m.pv,
-      m.followerPercent,
-      m.nonFollowerPercent,
-      m.influencerCount,
-      m.influencerEstimatedPv,
-    ]
-  );
-}
-
-async function main() {
-  await ensureSchema();
-
+export async function seedHistoricalData(): Promise<void> {
   for (const name of NAME_ONLY_ACCOUNTS) {
-    await findOrCreateAccount(name);
+    await findOrCreateAccountByName(name);
   }
 
   let count = 0;
   for (const m of METRICS) {
-    const account = await findOrCreateAccount(m.accountName);
-    await upsertMetric(account.id, m);
+    const { accountName, ...rest } = m;
+    const account = await findOrCreateAccountByName(accountName);
+    await upsertMetric({ ...rest, accountId: account.id });
     count++;
   }
 
-  console.log(`done: upserted ${count} metric rows, ensured ${NAME_ONLY_ACCOUNTS.length} name-only accounts`);
-  await pool.end();
-  process.exit(0);
+  console.log(
+    `[seed] upserted ${count} metric rows, ensured ${NAME_ONLY_ACCOUNTS.length} name-only accounts`
+  );
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
