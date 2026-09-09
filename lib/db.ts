@@ -135,6 +135,27 @@ export async function createAccount(name: string): Promise<Account> {
   return rowToAccount(rows[0]);
 }
 
+export async function createAccountsBulk(
+  names: string[]
+): Promise<{ created: Account[]; skipped: string[] }> {
+  await ensureSchema();
+  const existing = await listAccounts();
+  const existingNames = new Set(existing.map((a) => a.name));
+
+  const created: Account[] = [];
+  const skipped: string[] = [];
+  for (const name of names) {
+    if (existingNames.has(name)) {
+      skipped.push(name);
+      continue;
+    }
+    const account = await createAccount(name);
+    created.push(account);
+    existingNames.add(name);
+  }
+  return { created, skipped };
+}
+
 export async function renameAccount(accountId: string, name: string): Promise<Account | null> {
   await ensureSchema();
   const { rows } = await getPool().query<AccountRow>(

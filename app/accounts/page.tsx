@@ -19,6 +19,10 @@ export default function AccountsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -55,6 +59,37 @@ export default function AccountsPage() {
       setCreateError("通信エラーが発生しました");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleBulkCreate(e: React.FormEvent) {
+    e.preventDefault();
+    const names = bulkText
+      .split("\n")
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    if (names.length === 0) return;
+    setBulkSubmitting(true);
+    setBulkError(null);
+    setBulkResult(null);
+    try {
+      const res = await fetch("/api/accounts/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setBulkError(json.error ?? "追加に失敗しました");
+        return;
+      }
+      setAccounts((prev) => [...prev, ...json.created]);
+      setBulkResult({ created: json.created.length, skipped: json.skipped.length });
+      setBulkText("");
+    } catch {
+      setBulkError("通信エラーが発生しました");
+    } finally {
+      setBulkSubmitting(false);
     }
   }
 
@@ -125,6 +160,50 @@ export default function AccountsPage() {
         {createError && (
           <p className="text-xs" style={{ color: "var(--status-critical)" }}>
             {createError}
+          </p>
+        )}
+      </form>
+
+      <form
+        onSubmit={handleBulkCreate}
+        className="rounded-xl p-5 flex flex-col gap-3"
+        style={{ background: "var(--card-bg)", border: "1px solid var(--border-hairline)" }}
+      >
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            複数アカウントをまとめて追加
+          </h3>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            1行に1つ、アカウント名を貼り付けてください。空行は無視されます。既に同じ名前のアカウントがある場合はスキップされます。
+          </p>
+        </div>
+        <textarea
+          value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+          placeholder={"江並店\n神戸本多聞店\n松原店\n…"}
+          rows={8}
+          className="rounded-md px-3 py-2 text-sm font-mono"
+          style={inputStyle}
+        />
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={bulkSubmitting || bulkText.trim().length === 0}
+            className="px-4 py-2 rounded-md text-sm font-medium text-white disabled:opacity-60"
+            style={{ background: "var(--series-1)" }}
+          >
+            {bulkSubmitting ? "追加中…" : "まとめて追加"}
+          </button>
+          {bulkResult && (
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {bulkResult.created}件追加しました
+              {bulkResult.skipped > 0 && `(${bulkResult.skipped}件は既存のためスキップ)`}
+            </span>
+          )}
+        </div>
+        {bulkError && (
+          <p className="text-xs" style={{ color: "var(--status-critical)" }}>
+            {bulkError}
           </p>
         )}
       </form>
