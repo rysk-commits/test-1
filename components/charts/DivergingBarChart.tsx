@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { buildTicks, formatYm } from "./chartUtils";
+import { buildTicks, formatCompact, formatYm } from "./chartUtils";
 import { ChartTooltip } from "./ChartTooltip";
 import { formatYearMonth, formatSigned } from "@/lib/format";
 
@@ -11,11 +11,11 @@ export interface BarPoint {
 }
 
 const W = 720;
-const H = 220;
-const PAD_LEFT = 46;
+const H = 240;
+const PAD_LEFT = 62;
 const PAD_RIGHT = 16;
-const PAD_TOP = 20;
-const PAD_BOTTOM = 26;
+const PAD_TOP = 28;
+const PAD_BOTTOM = 34;
 const GAP = 2;
 
 export function DivergingBarChart({
@@ -68,18 +68,28 @@ export function DivergingBarChart({
   }
 
   const hovered = hoverIndex !== null ? data[hoverIndex] : null;
+  // Skip labels on every bar once there are too many to fit without collisions.
+  const labelEvery = data.length > 8 ? 2 : 1;
 
   return (
     <div ref={containerRef} className="relative w-full">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-label={seriesLabel}>
-        {ticks.map((t) =>
-          t === 0 ? null : (
-            <g key={t}>
-              <line x1={PAD_LEFT} x2={W - PAD_RIGHT} y1={yFor(t)} y2={yFor(t)} stroke="var(--gridline)" strokeWidth={1} />
-              <line x1={PAD_LEFT} x2={W - PAD_RIGHT} y1={yFor(-t)} y2={yFor(-t)} stroke="var(--gridline)" strokeWidth={1} />
-            </g>
-          )
-        )}
+        {ticks.map((t) => (
+          <g key={t}>
+            {t !== 0 && (
+              <>
+                <line x1={PAD_LEFT} x2={W - PAD_RIGHT} y1={yFor(t)} y2={yFor(t)} stroke="var(--gridline)" strokeWidth={1} />
+                <line x1={PAD_LEFT} x2={W - PAD_RIGHT} y1={yFor(-t)} y2={yFor(-t)} stroke="var(--gridline)" strokeWidth={1} />
+                <text x={PAD_LEFT - 10} y={yFor(-t)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="var(--text-muted)">
+                  −{formatCompact(t)}
+                </text>
+              </>
+            )}
+            <text x={PAD_LEFT - 10} y={yFor(t)} textAnchor="end" dominantBaseline="middle" fontSize={11} fill="var(--text-muted)">
+              {formatCompact(t)}
+            </text>
+          </g>
+        ))}
         <line x1={PAD_LEFT} x2={W - PAD_RIGHT} y1={zeroY} y2={zeroY} stroke="var(--baseline)" strokeWidth={1} />
 
         {data.map((d, i) => {
@@ -91,6 +101,7 @@ export function DivergingBarChart({
           const barH = Math.abs(zeroY - y);
           const color = isPositive ? positiveColor : negativeColor;
           const isHovered = hoverIndex === i;
+          const showLabel = i % labelEvery === 0 || i === data.length - 1;
           return (
             <g key={d.yearMonth}>
               <rect
@@ -102,6 +113,18 @@ export function DivergingBarChart({
                 fill={color}
                 opacity={isHovered ? 0.85 : 1}
               />
+              {showLabel && (
+                <text
+                  x={cx}
+                  y={isPositive ? y - 6 : y + 14}
+                  textAnchor="middle"
+                  fontSize={11}
+                  fontWeight={600}
+                  fill="var(--text-primary)"
+                >
+                  {formatSigned(d.value)}
+                </text>
+              )}
               <rect
                 x={cx - barWidth / 2 - 6}
                 y={PAD_TOP}
@@ -115,7 +138,7 @@ export function DivergingBarChart({
                 }}
               />
               {(i % Math.ceil(data.length / 6 || 1) === 0 || i === data.length - 1) && (
-                <text x={cx} y={H - 6} textAnchor="middle" fontSize={11} fill="var(--text-muted)">
+                <text x={cx} y={H - 8} textAnchor="middle" fontSize={11} fill="var(--text-muted)">
                   {formatYm(d.yearMonth)}
                 </text>
               )}

@@ -14,7 +14,7 @@ const W = 720;
 const H = 220;
 const PAD_LEFT = 54;
 const PAD_RIGHT = 16;
-const PAD_TOP = 20;
+const PAD_TOP = 28;
 const PAD_BOTTOM = 26;
 const GAP = 2;
 
@@ -66,6 +66,8 @@ export function SimpleBarChart({
   }
 
   const hovered = hoverIndex !== null ? data[hoverIndex] : null;
+  // Skip labels on every bar once there are too many to fit without collisions.
+  const labelEvery = data.length > 8 ? 2 : 1;
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -86,6 +88,7 @@ export function SimpleBarChart({
           const y = yFor(d.value);
           const barH = baseY - y;
           const isHovered = hoverIndex === i;
+          const showLabel = i % labelEvery === 0 || i === data.length - 1;
           return (
             <g key={d.yearMonth}>
               <rect
@@ -97,6 +100,18 @@ export function SimpleBarChart({
                 fill={color}
                 opacity={isHovered ? 0.85 : 1}
               />
+              {showLabel && (
+                <text
+                  x={cx}
+                  y={y - 6}
+                  textAnchor="middle"
+                  fontSize={11}
+                  fontWeight={600}
+                  fill="var(--text-primary)"
+                >
+                  {formatNumber(d.value)}
+                </text>
+              )}
               <rect
                 x={cx - barWidth / 2 - 6}
                 y={PAD_TOP}

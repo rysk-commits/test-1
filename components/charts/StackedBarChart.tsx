@@ -5,6 +5,8 @@ import { formatYm } from "./chartUtils";
 import { ChartTooltip } from "./ChartTooltip";
 import { formatYearMonth, formatPercent } from "@/lib/format";
 
+const MIN_LABEL_HEIGHT = 20;
+
 export interface BreakdownPoint {
   yearMonth: string;
   followerPercent: number | null;
@@ -100,6 +102,19 @@ export function StackedBarChart({
                     rx={4}
                     fill={followerColor}
                   />
+                  {followerH >= MIN_LABEL_HEIGHT && d.followerPercent !== null && (
+                    <text
+                      x={cx}
+                      y={PAD_TOP + followerH / 2}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={10}
+                      fontWeight={700}
+                      fill="#0b0b0b"
+                    >
+                      {formatPercent(d.followerPercent)}
+                    </text>
+                  )}
                   <rect
                     x={cx - barWidth / 2}
                     y={PAD_TOP + followerH + SEGMENT_GAP}
@@ -108,6 +123,19 @@ export function StackedBarChart({
                     rx={4}
                     fill={nonFollowerColor}
                   />
+                  {nonFollowerH >= MIN_LABEL_HEIGHT && d.nonFollowerPercent !== null && (
+                    <text
+                      x={cx}
+                      y={PAD_TOP + followerH + SEGMENT_GAP + nonFollowerH / 2}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={10}
+                      fontWeight={700}
+                      fill="#0b0b0b"
+                    >
+                      {formatPercent(d.nonFollowerPercent)}
+                    </text>
+                  )}
                 </>
               )}
               <rect
